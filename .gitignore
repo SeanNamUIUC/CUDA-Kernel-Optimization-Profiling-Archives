@@ -1,0 +1,13 @@
+# 빌드 결과물 (실행 파일)
+sgemm_bench
+*.o
+*.out
+
+# Nsight 프로파일링 파일 (대용량)
+*.nsys-rep
+*.sqlite
+*.qdstrm
+
+# IDE 및 OS 설정 파일
+.vscode/
+.DS_Store
