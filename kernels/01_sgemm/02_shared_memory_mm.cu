@@ -80,3 +80,15 @@ __global__ void mm_shared_memory(const float* A, const float* B, float* C, int M
         C[row * K + col] = sum;
     }
 }
+
+
+extern "C" void solve_smem_mm(const float* A, const float* B, float* C, int M, int N, int K) {
+    // 1. TILE_SIZE(16)와 1:1로 매핑되는 스레드 블록 설정 
+    dim3 threadsPerBlock(TILE_SIZE, TILE_SIZE);
+
+    // 2. 결과 행렬 C(M x K)를 커버하기 위한 Grid 차원 계산
+    dim3 blocksPerGrid((K + threadsPerBlock.x - 1) / threadsPerBlock.x,
+                       (M + threadsPerBlock.y - 1) / threadsPerBlock.y);
+    mm_shared_memory<<<blocksPerGrid, threadsPerBlock>>>(A, B, C, M, N, K);
+    cudaDeviceSynchronize();
+}
