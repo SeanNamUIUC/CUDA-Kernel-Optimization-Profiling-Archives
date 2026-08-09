@@ -16,3 +16,58 @@ nsys profile --trace=cuda,nvtx,osrt --stats=true --output=sgemm_report ./sgemm_b
 # 'Press Ctrl-C to stop symbol files downloading' 대기 시 -> Ctrl + C입력
 5. Verification정상적으로 sgemm_report.nsys-rep 및 sgemm_report.sqlite 파일이 생성되고 CLI 통계 표가 출력되면 해결 완료.Bash# 타임라인 GUI 시각화 확인
 nsys-ui sgemm_report.nsys-rep
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## [NCU] Nsight Compute 2026.2 설치 및 최신 GPU 프로파일링 환경 구축
+
+### 1. 문제 상황 (Issue)
+* **RTX 5070 Ti 하드웨어 카운터 미지원**: 기존 CUDA Toolkit에 포함된 `NCU 2024.1` 버전은 최신 아키텍처(RTX 5070 Ti)의 성능 카운터를 인식하지 못해 프로파일링 수집 시 오류 발생 위험이 있음.
+* **인스톨러 실행 실패 (`.run` 설치 시)**: 최신 NCU 2026.2 패키지 실행 중 `/root/.local/share/applications` 디렉토리가 존재하지 않아 설치 스크립트(`install-linux.pl`)가 중단됨.
+* **설치 후 버전 미갱신**: 설치 완료 후에도 터미널에서 `ncu --version` 호출 시 `$PATH` 우선순위 및 쉘 명령 캐시(`hash table`)로 인해 이전 2024.1 버전이 지속적으로 호출됨.
+
+### 2. 원인 분석 (Root Cause)
+1. **Linux 디렉토리 구조 미비**: `sudo` 권한으로 `.run` 인스톨러 실행 시 데스크톱 바로가기(`.desktop`) 아이콘을 `/root` 경로에 생성하려고 하나 해당 폴더가 생성되어 있지 않음.
+2. **Path & Shell Hash Conflict**: `/usr/local/cuda/bin/ncu` 등 구버전 경로가 심볼릭 링크보다 우선 탐색되거나, 쉘이 이전 명령어 실행 경로를 메모리에 쥐고 있음.
+
+### 3. 해결 방법 (Resolution)
+
+**Step 1: 누락된 디렉토리 사전 생성 및 설치 재실행**
+```bash
+# GUI 데스크톱 항목용 누락 디렉토리 수동 생성
+sudo mkdir -p /root/.local/share/applications
+
+# NCU 2026.2 인스톨러 실행
+cd ~/Downloads
+chmod +x nsight-compute-linux-2026.2.0.run
+sudo ./nsight-compute-linux-2026.2.0.run
+
+
+# 2026.2 바이너리를 표준 경로로 강제 바인딩
+sudo ln -sf /usr/local/NVIDIA-Nsight-Compute-2026.2/ncu /usr/local/bin/ncu
+sudo ln -sf /usr/local/NVIDIA-Nsight-Compute-2026.2/ncu /usr/bin/ncu
+
+# 쉘 명령 위치 테이블 초기화
+hash -r
+
+ncu --version
+# Output: Version 2026.2.x 확인 완료
+
+
+
+
