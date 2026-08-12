@@ -73,7 +73,7 @@ void run_kernel_benchmark(const char* name, KernelFunc kernel_fn,
 int main() {
     
     // Initialize host matrices A, B, and C
-    int M = 512, N = 512, K = 512;
+    int M = 4096, N = 4096, K = 4096;
     std::vector<float> h_A(M * N), h_B(N * K), h_C_CPU(M * K), h_C_GPU(M * K);
     for (int i = 0; i < M * N; ++i) h_A[i] = (float)rand() / RAND_MAX; //returns 0.0 ~ 1.0
     for (int j = 0; j < N * K; ++j) h_B[j] = (float)rand() / RAND_MAX; //returns 0.0 ~ 1.0
@@ -99,8 +99,14 @@ int main() {
 
     
     //1.Benchmarking the naive matrix multiplication kernel
-    std::cout << "Running Naive SGEMM Kernel...\n";
-    run_kernel_benchmark("01_naive_sgemm", solve_naive_mm, 
+    // std::cout << "Running Naive SGEMM Kernel...\n";
+    // run_kernel_benchmark("01_naive_sgemm", solve_naive_mm, 
+    //                      d_A, d_B, d_C, h_C_GPU.data(), h_C_CPU.data(), M, N, K, timer);
+
+    
+    //2.Benchmarking the shared memory matrix multiplication kernel
+    std::cout << "Running Shared Memory SGEMM Kernel...\n";
+    run_kernel_benchmark("02_shared_memory_sgemm", solve_shared_mm,
                          d_A, d_B, d_C, h_C_GPU.data(), h_C_CPU.data(), M, N, K, timer);
 
     

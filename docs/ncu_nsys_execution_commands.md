@@ -59,3 +59,7 @@ dram__bytes_read.sum,\
 dram__bytes_write.sum,\
 launch__occupancy_achieved.pct \
 ./bench_sgemm
+
+
+# metrics profiling command I used
+sudo ncu --kernel-name "naive_mm_kernel" --launch-skip 1 --launch-count 1 --section Occupancy --metrics gpu__time_duration.sum,sm__throughput.avg.pct_of_peak_sustained_elapsed,gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed,l1tex__data_bank_conflicts_pipe_lsu.sum,dram__bytes.sum ./bench_sgemm > results/logs/01_naive_1024.txt

@@ -1,6 +1,6 @@
-#define TILE_SIZE 16
+#define TILE_SIZE 32
 
-__global__ void mm_shared_memory(const float* A, const float* B, float* C, int M, int N, int K) {
+__global__ void shared_mm_kernel(const float* A, const float* B, float* C, int M, int N, int K) {
     //L1 cache 급 속도의 Shared memory 타일 공간 설정
     //블록 내부의 스레드들이 이 shared memory공간을 공용으로 사용함
     //1. (SRAM 영역) shared memory 타일 공간 할당.
@@ -82,13 +82,13 @@ __global__ void mm_shared_memory(const float* A, const float* B, float* C, int M
 }
 
 
-extern "C" void solve_smem_mm(const float* A, const float* B, float* C, int M, int N, int K) {
-    // 1. TILE_SIZE(16)와 1:1로 매핑되는 스레드 블록 설정 
+extern "C" void solve_shared_mm(const float* A, const float* B, float* C, int M, int N, int K) {
+    // 1. TILE_SIZE와 1:1로 매핑되는 스레드 블록 설정 
     dim3 threadsPerBlock(TILE_SIZE, TILE_SIZE);
 
     // 2. 결과 행렬 C(M x K)를 커버하기 위한 Grid 차원 계산
     dim3 blocksPerGrid((K + threadsPerBlock.x - 1) / threadsPerBlock.x,
                        (M + threadsPerBlock.y - 1) / threadsPerBlock.y);
-    mm_shared_memory<<<blocksPerGrid, threadsPerBlock>>>(A, B, C, M, N, K);
+    shared_mm_kernel<<<blocksPerGrid, threadsPerBlock>>>(A, B, C, M, N, K);
     cudaDeviceSynchronize();
 }
