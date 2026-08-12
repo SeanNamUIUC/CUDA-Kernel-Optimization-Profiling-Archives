@@ -1,0 +1,45 @@
+==PROF== Connected to process 27588 (/home/sean-nam/projects/CUDA-Kernel-Optimization-Profiling-Archives/bench_sgemm)
+==PROF== Profiling "shared_mm_kernel": 0%....50%....100% - 9 passes
+Running CPU SGEMM...
+Running Shared Memory SGEMM Kernel...
+02_shared_memory_sgemm Average Time: 59.6196 ms
+02_shared_memory_sgemm GFLOPS: 288.158
+Validation: PASSED!
+==PROF== Disconnected from process 27588
+[27588] bench_sgemm@127.0.0.1
+  shared_mm_kernel(const float *, const float *, float *, int, int, int) (64, 64, 1)x(32, 32, 1), Context 1, Stream 7, Device 0, CC 12.0
+    Section: Command line profiler metrics
+    ---------------------------------------------------------------- ----------- ------------
+    Metric Name                                                      Metric Unit Metric Value
+    ---------------------------------------------------------------- ----------- ------------
+    dram__bytes.sum                                                        Mbyte        45.18
+    gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed           %        84.58
+    gpu__time_duration.sum                                                    ms         5.09
+    l1tex__data_bank_conflicts_pipe_lsu.sum                                         5,364,828
+    sm__throughput.avg.pct_of_peak_sustained_elapsed                           %        84.58
+    ---------------------------------------------------------------- ----------- ------------
+
+    Section: Occupancy
+    ------------------------------- ----------- ------------
+    Metric Name                     Metric Unit Metric Value
+    ------------------------------- ----------- ------------
+    Max Active Clusters                 cluster            0
+    Max Cluster Size                      block            8
+    Overall GPU Occupancy                     %            0
+    Cluster Occupancy                         %            0
+    Block Limit Barriers                  block           24
+    Block Limit SM                        block           24
+    Block Limit Registers                 block            1
+    Block Limit Shared Mem                block            1
+    Block Limit Warps                     block            1
+    Theoretical Active Warps per SM        warp           32
+    Theoretical Occupancy                     %        66.67
+    Achieved Occupancy                        %        66.65
+    Achieved Active Warps Per SM           warp        31.99
+    ------------------------------- ----------- ------------
+
+    OPT   Est. Local Speedup: 33.33%                                                                                    
+          The 8.00 theoretical warps per scheduler this kernel can issue according to its occupancy are below the       
+          hardware maximum of 12. This kernel's theoretical occupancy (66.7%) is limited by the number of required      
+          registers, and the number of warps within each block.                                                         
+

@@ -1,0 +1,40 @@
+==PROF== Connected to process 26883 (/home/sean-nam/projects/CUDA-Kernel-Optimization-Profiling-Archives/bench_sgemm)
+==PROF== Profiling "shared_mm_kernel": 0%....50%....100% - 9 passes
+Running CPU SGEMM...
+Running Shared Memory SGEMM Kernel...
+02_shared_memory_sgemm Average Time: 49.2862 ms
+02_shared_memory_sgemm GFLOPS: 43.5717
+Validation: PASSED!
+==PROF== Disconnected from process 26883
+[26883] bench_sgemm@127.0.0.1
+  shared_mm_kernel(const float *, const float *, float *, int, int, int) (64, 64, 1)x(16, 16, 1), Context 1, Stream 7, Device 0, CC 12.0
+    Section: Command line profiler metrics
+    ---------------------------------------------------------------- ----------- ------------
+    Metric Name                                                      Metric Unit Metric Value
+    ---------------------------------------------------------------- ----------- ------------
+    dram__bytes.sum                                                        Mbyte         8.56
+    gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed           %        94.62
+    gpu__time_duration.sum                                                    us       622.88
+    l1tex__data_bank_conflicts_pipe_lsu.sum                                         4,222,149
+    sm__throughput.avg.pct_of_peak_sustained_elapsed                           %        94.62
+    ---------------------------------------------------------------- ----------- ------------
+
+    Section: Occupancy
+    ------------------------------- ----------- ------------
+    Metric Name                     Metric Unit Metric Value
+    ------------------------------- ----------- ------------
+    Max Active Clusters                 cluster            0
+    Max Cluster Size                      block            8
+    Overall GPU Occupancy                     %            0
+    Cluster Occupancy                         %            0
+    Block Limit Barriers                  block           24
+    Block Limit SM                        block           24
+    Block Limit Registers                 block            6
+    Block Limit Shared Mem                block           21
+    Block Limit Warps                     block            6
+    Theoretical Active Warps per SM        warp           48
+    Theoretical Occupancy                     %          100
+    Achieved Occupancy                        %        96.03
+    Achieved Active Warps Per SM           warp        46.10
+    ------------------------------- ----------- ------------
+
