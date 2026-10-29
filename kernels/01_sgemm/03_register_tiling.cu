@@ -52,8 +52,9 @@ __global__ void kernel(const float* __restrict__ A,
             int r = innerRowA + off;// A 조각에서의 행 번호 (0 ~ 127)
             int gRow = blockRow + r;      // A의 전역 행 (M 방향)   
             int gCol = k0 + innerColA;    // A의 전역 열 (K 방향)
-            
+        
             As[r][innerColA] = (gRow < M && gCol < K) ? A[gRow * K + gCol] : 0.0f; 
+        }
         // 6-2. B 조각(8 x 128) 로드: 2행씩 4번
         for (int off = 0; off < BK; off += strideB) {
             int r = innerRowB + off;// B 조각에서의 행 번호 (0 ~ 7)
@@ -94,7 +95,7 @@ __global__ void kernel(const float* __restrict__ A,
             if (col < N) C[row * N + col] = regC[i][j];
         }
     }
-}
+    }
 
 }  // namespace blocktile2d
 

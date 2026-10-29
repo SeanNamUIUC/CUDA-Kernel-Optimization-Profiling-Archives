@@ -19,6 +19,7 @@
 // 만든 커널들
 #include <kernels/01_sgemm/01_naive_mm.cu>
 #include <kernels/01_sgemm/02_shared_memory_mm.cu>
+#include <kernels/01_sgemm/03_register_tiling.cu>
 
 #include <cmath>
 #include <cstdio>
@@ -26,6 +27,7 @@
 #include <string>
 #include <vector>
 
+// cuBLAS 호출 오류 확인
 #define CUBLAS_CHECK(call)                                                        \
     do {                                                                          \
         cublasStatus_t st = (call);                                               \
@@ -41,11 +43,13 @@
 // 모든 커널 함수 모양: void solve_xxx(const float* A, const float* B, float* C, int M, int N, int K)
 using SgemmFn = void (*)(const float*, const float*, float*, int, int, int);
 
+// 커널 이름 + 함수 포인터
 struct KernelEntry {
     const char* name;
     SgemmFn fn;
 };
 
+// cuBLAS 핸들 전역 변수
 static cublasHandle_t g_handle;
 
 // cuBLAS는 column-major라서
@@ -53,13 +57,16 @@ static cublasHandle_t g_handle;
 // (row-major 행렬을 그대로 넘기면 cuBLAS 눈에는 전치 행렬로 보이는 것을 이용)
 void cublas_sgemm(const float* A, const float* B, float* C, int M, int N, int K) {
     const float alpha = 1.0f, beta = 0.0f;
+    //column-major로 전치된 것처럼 넘기기 위해 A와 B를 바꿔서 호출
     CUBLAS_CHECK(cublasSgemm(g_handle, CUBLAS_OP_N, CUBLAS_OP_N,
                              N, M, K,
                              &alpha, B, N, A, K,
                              &beta, C, N));
 }
 
+//초당 10억 연산단위로 -> 숫자가 클수록 빠른 커널
 double gflops(int M, int N, int K, double ms) {
+
     return 2.0 * M * N * K / (ms * 1e-3) / 1e9;
 }
 
@@ -68,9 +75,11 @@ double gflops(int M, int N, int K, double ms) {
 // timer.stop()이 이벤트로 동기화해 줌.
 float time_kernel(SgemmFn fn, const float* dA, const float* dB, float* dC,
                   int M, int N, int K, int iters, GpuTimer& timer) {
-    for (int i = 0; i < 3; ++i) fn(dA, dB, dC, M, N, K);  // 워밍업
+    //// 워밍업                
+    for (int i = 0; i < 3; ++i) fn(dA, dB, dC, M, N, K);  
     CUDA_CHECK_LAST_ERROR();
-
+    
+    //평균 1회 실행시간 측정
     timer.start();
     for (int i = 0; i < iters; ++i) fn(dA, dB, dC, M, N, K);
     timer.stop();
@@ -78,14 +87,21 @@ float time_kernel(SgemmFn fn, const float* dA, const float* dB, float* dC,
     return timer.elapsed_ms() / iters;
 }
 
-// 상대 오차 검증: |gpu - ref| <= rtol * |ref| + atol
+// 오차검증함수 
+//atol (absolute tolerance) 절대오차-> diff = |ref - out|, 차이가 0.001 이하면 pass -> diff <= 0.001
+// rtol (relative tolerance) 상대오차-> rel = |ref - out| / |ref|, 정답의 0.1% 이하면 pass -> rel <= 0.001
+// 사용한 방식: 절대오차와 상대오차를 모두 고려하여, diff <= rtol * |ref| + atol 이면 pass
+//ref: cuBLAS 결과, out: 내 커널 결과, max_rel: 최대 상대 오차 반환
 bool verify(const std::vector<float>& ref, const std::vector<float>& out, float& max_rel) {
     const float rtol = 1e-3f, atol = 1e-3f;
+    //최대 상대오차
     max_rel = 0.0f;
     for (size_t i = 0; i < ref.size(); ++i) {
         float diff = std::fabs(out[i] - ref[i]);
+        //  /0 방지용 
         float rel = diff / (std::fabs(ref[i]) + 1e-6f);
         if (rel > max_rel) max_rel = rel;
+        //정답 * 0.1% + 0.001 보다 차이가 크면 틀린 것으로 간주
         if (diff > rtol * std::fabs(ref[i]) + atol) {
             std::printf("    mismatch at %zu: ref=%f got=%f\n", i, ref[i], out[i]);
             return false;
@@ -95,7 +111,12 @@ bool verify(const std::vector<float>& ref, const std::vector<float>& out, float&
 }
 
 // 정사각형이 아니고 타일 배수도 아닌 크기로 정확성만 확인.
-// M = N = K일 때는 M, N, K를 바꿔 써도 결과가 맞아 버려서, 이런 버그는 여기서만 잡혀요.
+// M = N = K일 때는 M, N, K를 바꿔 써도 결과가 맞아 버려서, 이런 버그는 여기서만 잡힘
+
+//1.정사각형이 아닌 크기: (1000, 777, 1234), (33, 65, 17), (128, 1, 300)
+//2. cuBLAS 결과를 계산해서 href에 저장
+//3. 내 커널들을 실행해서 dC에 저장 후, hOut에 가져와서 cuBLAS 결과와 비교
+
 bool check_shapes(const std::vector<KernelEntry>& kernels) {
     struct Shape { int M, N, K; };
     const Shape shapes[] = {{1000, 777, 1234}, {33, 65, 17}, {128, 1, 300}};
@@ -104,19 +125,25 @@ bool check_shapes(const std::vector<KernelEntry>& kernels) {
     std::printf("=== 정확성 확인: 정사각형이 아닌 크기 ===\n");
     for (const auto& s : shapes) {
         size_t szA = (size_t)s.M * s.K, szB = (size_t)s.K * s.N, szC = (size_t)s.M * s.N;
+        //host vector
         std::vector<float> hA(szA), hB(szB), hRef(szC), hOut(szC);
+        //0에서 1 사이 랜덤값
         for (auto& x : hA) x = (float)rand() / RAND_MAX - 0.5f;
         for (auto& x : hB) x = (float)rand() / RAND_MAX - 0.5f;
+        
 
+        //GPU device vector
         float *dA, *dB, *dC;
         CUDA_CHECK(cudaMalloc(&dA, szA * sizeof(float)));
         CUDA_CHECK(cudaMalloc(&dB, szB * sizeof(float)));
         CUDA_CHECK(cudaMalloc(&dC, szC * sizeof(float)));
+        // host -> device
         CUDA_CHECK(cudaMemcpy(dA, hA.data(), szA * sizeof(float), cudaMemcpyHostToDevice));
         CUDA_CHECK(cudaMemcpy(dB, hB.data(), szB * sizeof(float), cudaMemcpyHostToDevice));
 
         cublas_sgemm(dA, dB, dC, s.M, s.N, s.K);
         CUDA_CHECK_LAST_ERROR();
+        //GPU의 dC -> cpu의 hRef 사용하여 cuBLAS 결과를 가져옴
         CUDA_CHECK(cudaMemcpy(hRef.data(), dC, szC * sizeof(float), cudaMemcpyDeviceToHost));
 
         for (const auto& k : kernels) {
@@ -150,9 +177,9 @@ int main(int argc, char** argv) {
         {"02_shared_t16", solve_shared_mm<16>},
         {"02_shared_t32", solve_shared_mm<32>},
         // {"03_1d_blocktile", solve_1d_blocktile_mm},
-        // {"04_2d_blocktile", solve_2d_blocktile_mm},
+        {"04_2d_blocktile", solve_2d_blocktile_mm}
     };
-
+    // GPU 정보 출력
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, 0));
     std::printf("GPU: %s (sm_%d%d)\n\n", prop.name, prop.major, prop.minor);
@@ -160,7 +187,7 @@ int main(int argc, char** argv) {
     CUBLAS_CHECK(cublasCreate(&g_handle));
     // TF32를 쓰지 않는 순수 FP32 기준선 (공정한 비교)
     CUBLAS_CHECK(cublasSetMathMode(g_handle, CUBLAS_PEDANTIC_MATH));
-
+    // 시드 고정: 랜덤값이 바뀌면 정확성 검증이 달라짐
     srand(42);
 
     // 0) 정확성 먼저. 하나라도 틀리면 속도는 재지 않음.
